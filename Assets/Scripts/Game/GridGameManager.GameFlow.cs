@@ -4,18 +4,7 @@ using UnityEngine.UI;
 
 public partial class GridGameManager
 {
-    void EnsureStages()
-    {
-        if (stages.Count > 0) return;
-        for (int i = 0; i < 10; i++)
-        {
-            stages.Add(new StageConfig
-            {
-                turnCheck = 5 + i * 2,
-                requiredHappy = 10 + i * 10
-            });
-        }
-    }
+    private GameObject _roundClearUI;
 
     void ShowGameOver(int requiredHappy)
     {
@@ -34,12 +23,13 @@ public partial class GridGameManager
         var canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 999;
-        canvas.pixelPerfect = false;
         var scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 0f;
         canvasObj.AddComponent<GraphicRaycaster>();
+        if (canvasObj.GetComponent<CanvasFitInScreen>() == null)
+            canvasObj.AddComponent<CanvasFitInScreen>();
 
         var panel = new GameObject("Panel");
         panel.transform.SetParent(canvasObj.transform, false);
@@ -47,59 +37,44 @@ public partial class GridGameManager
         panelRect.anchorMin = Vector2.zero;
         panelRect.anchorMax = Vector2.one;
         panelRect.offsetMin = panelRect.offsetMax = Vector2.zero;
-        var panelImg = panel.AddComponent<Image>();
-        panelImg.color = new Color(0.25f, 0.05f, 0.05f, 0.98f);
-        panelImg.raycastTarget = true;
+        panel.AddComponent<Image>().color = new Color(0.25f, 0.05f, 0.05f, 0.98f);
 
         var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         var titleObj = new GameObject("Title");
         titleObj.transform.SetParent(panel.transform, false);
-        var titleRect = titleObj.AddComponent<RectTransform>();
-        titleRect.anchorMin = titleRect.anchorMax = new Vector2(0.5f, 0.6f);
-        titleRect.pivot = new Vector2(0.5f, 0.5f);
-        titleRect.sizeDelta = new Vector2(400, 60);
         var titleText = titleObj.AddComponent<Text>();
         titleText.text = "Game Over";
-        titleText.fontSize = 48;
+        titleText.fontSize = 36; // 48 -> 36
         titleText.color = Color.white;
         titleText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) titleText.font = font;
+        titleText.font = font;
+        titleObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 100);
 
         var detailObj = new GameObject("Detail");
         detailObj.transform.SetParent(panel.transform, false);
-        var detailRect = detailObj.AddComponent<RectTransform>();
-        detailRect.anchorMin = detailRect.anchorMax = new Vector2(0.5f, 0.45f);
-        detailRect.pivot = new Vector2(0.5f, 0.5f);
-        detailRect.sizeDelta = new Vector2(500, 80);
         var detailText = detailObj.AddComponent<Text>();
         detailText.text = $"Required Happy: {requiredHappy}\nYour Happy: {happyTotal}";
-        detailText.fontSize = 24;
+        detailText.fontSize = 18; // 24 -> 18
         detailText.color = Color.white;
         detailText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) detailText.font = font;
+        detailText.font = font;
+        detailObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 0);
 
         var btnObj = new GameObject("RetryButton");
         btnObj.transform.SetParent(panel.transform, false);
-        var btnRect = btnObj.AddComponent<RectTransform>();
-        btnRect.anchorMin = btnRect.anchorMax = new Vector2(0.5f, 0.25f);
-        btnRect.pivot = new Vector2(0.5f, 0.5f);
-        btnRect.sizeDelta = new Vector2(160, 50);
-        var btnImg = btnObj.AddComponent<Image>();
-        btnImg.color = new Color(0.3f, 0.2f, 0.2f, 1f);
+        btnObj.AddComponent<Image>().color = new Color(0.3f, 0.2f, 0.2f, 1f);
         var btn = btnObj.AddComponent<Button>();
         var btnTextObj = new GameObject("Text");
         btnTextObj.transform.SetParent(btnObj.transform, false);
-        var btnTextRect = btnTextObj.AddComponent<RectTransform>();
-        btnTextRect.anchorMin = Vector2.zero;
-        btnTextRect.anchorMax = Vector2.one;
-        btnTextRect.offsetMin = btnTextRect.offsetMax = Vector2.zero;
         var btnText = btnTextObj.AddComponent<Text>();
         btnText.text = "Retry";
-        btnText.fontSize = 28;
+        btnText.fontSize = 20; // 28 -> 20
         btnText.color = Color.white;
         btnText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) btnText.font = font;
+        btnText.font = font;
+        btnObj.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 50);
+        btnObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
         btn.onClick.AddListener(OnRetryGameOver);
 
         return canvasObj;
@@ -107,23 +82,21 @@ public partial class GridGameManager
 
     void OnRetryGameOver()
     {
-        if (_gameOverUI != null)
-        {
-            Destroy(_gameOverUI);
-            _gameOverUI = null;
-        }
+        if (_gameOverUI != null) Destroy(_gameOverUI);
         _gameOver = false;
         _currentTurn = 0;
         _currentStageIndex = 0;
         happyTotal = 0;
-        if (gameStartUI != null)
-        {
-            gameStartUI.ShowGameStart();
-        }
-        else if (_selectionManager != null)
-        {
-            _selectionManager.ShowSelectionAgain();
-        }
+        _gridInitialized = false; // Re-initialize
+        BeginGame(null);
+    }
+
+    void ShowRoundClear(int clearedRound)
+    {
+        _waitingForNextStage = true;
+        if (_selectionManager != null && _selectionManager.selectionPanel != null)
+            _selectionManager.selectionPanel.SetActive(false);
+        _roundClearUI = CreateInfoUI($"Round {clearedRound} Clear!", "Next Round", OnNextRound);
     }
 
     void ShowStageClear(int clearedStage)
@@ -131,101 +104,74 @@ public partial class GridGameManager
         _waitingForNextStage = true;
         if (_selectionManager != null && _selectionManager.selectionPanel != null)
             _selectionManager.selectionPanel.SetActive(false);
-        if (_stageClearUI != null) return;
-        _stageClearUI = CreateStageClearUI(clearedStage);
-        if (_stageClearUI != null) _stageClearUI.SetActive(true);
+        _stageClearUI = CreateInfoUI($"Stage {clearedStage} Clear!", "Move to Next Room", OnNextStage);
     }
 
-    GameObject CreateStageClearUI(int clearedStage)
+    GameObject CreateInfoUI(string title, string buttonText, UnityEngine.Events.UnityAction action)
     {
-        var canvasObj = new GameObject("StageClearCanvas");
-        canvasObj.SetActive(true);
+        var canvasObj = new GameObject("InfoCanvas");
         var canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 200;
-        canvas.pixelPerfect = false;
-        var scaler = canvasObj.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0.5f;
+        var infoScaler = canvasObj.AddComponent<CanvasScaler>();
+        infoScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        infoScaler.referenceResolution = new Vector2(1920, 1080);
+        infoScaler.matchWidthOrHeight = 0f;
         canvasObj.AddComponent<GraphicRaycaster>();
+        if (canvasObj.GetComponent<CanvasFitInScreen>() == null)
+            canvasObj.AddComponent<CanvasFitInScreen>();
 
         var panel = new GameObject("Panel");
         panel.transform.SetParent(canvasObj.transform, false);
-        var panelRect = panel.AddComponent<RectTransform>();
-        panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(400, 280);
-        var panelImg = panel.AddComponent<Image>();
-        panelImg.color = new Color(0.1f, 0.3f, 0.15f, 0.95f);
-        panelImg.raycastTarget = true;
+        panel.AddComponent<Image>().color = new Color(0.1f, 0.2f, 0.15f, 0.95f);
+        panel.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 300);
 
         var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         var titleObj = new GameObject("Title");
         titleObj.transform.SetParent(panel.transform, false);
-        var titleRect = titleObj.AddComponent<RectTransform>();
-        titleRect.anchorMin = titleRect.anchorMax = new Vector2(0.5f, 0.7f);
-        titleRect.pivot = new Vector2(0.5f, 0.5f);
-        titleRect.sizeDelta = new Vector2(350, 50);
-        var titleText = titleObj.AddComponent<Text>();
-        titleText.text = "Stage Clear!";
-        titleText.fontSize = 40;
-        titleText.color = Color.white;
-        titleText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) titleText.font = font;
+        var tText = titleObj.AddComponent<Text>();
+        tText.text = title;
+        tText.fontSize = 30; // 40 -> 30
+        tText.color = Color.white;
+        tText.alignment = TextAnchor.MiddleCenter;
+        tText.font = font;
+        titleObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 50);
 
-        var detailObj = new GameObject("Detail");
-        detailObj.transform.SetParent(panel.transform, false);
-        var detailRect = detailObj.AddComponent<RectTransform>();
-        detailRect.anchorMin = detailRect.anchorMax = new Vector2(0.5f, 0.5f);
-        detailRect.pivot = new Vector2(0.5f, 0.5f);
-        detailRect.sizeDelta = new Vector2(350, 60);
-        var detailText = detailObj.AddComponent<Text>();
-        detailText.text = $"Stage {clearedStage} Complete!\nTotal Happy: {happyTotal}";
-        detailText.fontSize = 22;
-        detailText.color = Color.white;
-        detailText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) detailText.font = font;
-
-        var btnObj = new GameObject("NextStageButton");
+        var btnObj = new GameObject("Button");
         btnObj.transform.SetParent(panel.transform, false);
-        var btnRect = btnObj.AddComponent<RectTransform>();
-        btnRect.anchorMin = btnRect.anchorMax = new Vector2(0.5f, 0.25f);
-        btnRect.pivot = new Vector2(0.5f, 0.5f);
-        btnRect.sizeDelta = new Vector2(180, 50);
-        var btnImg = btnObj.AddComponent<Image>();
-        btnImg.color = new Color(0.2f, 0.5f, 0.3f, 1f);
+        btnObj.AddComponent<Image>().color = new Color(0.2f, 0.5f, 0.3f, 1f);
         var btn = btnObj.AddComponent<Button>();
-        var btnTextObj = new GameObject("Text");
-        btnTextObj.transform.SetParent(btnObj.transform, false);
-        var btnTextRect = btnTextObj.AddComponent<RectTransform>();
-        btnTextRect.anchorMin = Vector2.zero;
-        btnTextRect.anchorMax = Vector2.one;
-        btnTextRect.offsetMin = btnTextRect.offsetMax = Vector2.zero;
-        var btnText = btnTextObj.AddComponent<Text>();
-        btnText.text = "Next Stage";
-        btnText.fontSize = 26;
-        btnText.color = Color.white;
-        btnText.alignment = TextAnchor.MiddleCenter;
-        if (font != null) btnText.font = font;
-        btn.onClick.AddListener(OnNextStage);
+        var bTextObj = new GameObject("Text");
+        bTextObj.transform.SetParent(btnObj.transform, false);
+        var bText = bTextObj.AddComponent<Text>();
+        bText.text = buttonText;
+        bText.fontSize = 18; // 24 -> 18
+        bText.color = Color.white;
+        bText.alignment = TextAnchor.MiddleCenter;
+        bText.font = font;
+        btnObj.GetComponent<RectTransform>().sizeDelta = new Vector2(200, 50);
+        btnObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -50);
+        btn.onClick.AddListener(action);
 
         return canvasObj;
     }
 
+    void OnNextRound()
+    {
+        if (_roundClearUI != null) Destroy(_roundClearUI);
+        _waitingForNextStage = false;
+        _currentRoundIndex++;
+        _turnsInCurrentRound = 0;
+        FinishEndTurn();
+    }
+
     void OnNextStage()
     {
-        if (_stageClearUI != null)
-        {
-            Destroy(_stageClearUI);
-            _stageClearUI = null;
-        }
+        if (_stageClearUI != null) Destroy(_stageClearUI);
         _waitingForNextStage = false;
         _currentStageIndex++;
-        actionPoints = 3;
-        UpdateIndicators();
-        if (_selectionManager == null) _selectionManager = FindObjectOfType<FurnitureSelectionManager>();
-        if (_selectionManager != null) _selectionManager.ShowSelectionAgain();
+        LoadStage(_currentStageIndex);
+        FinishEndTurn();
     }
 }

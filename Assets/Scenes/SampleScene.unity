@@ -705,7 +705,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "END TURN"
+  m_text: END TURN
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1044,13 +1044,18 @@ MonoBehaviour:
   - {fileID: 7691096548210044452, guid: eaabfbfc9fa9027418a9f93fd065edfe, type: 3}
   indicatorPrefab: {fileID: 7445390968773439388, guid: bd801b2eb00a61948ab3ae71f2e5fece, type: 3}
   indicatorBaseSize: 10
+  indicatorAlwaysOnTop: 1
+  furnitureOverlayOpacity: 0.6
   apText: {fileID: 1096509714}
-  actionPoints: 7
+  actionPoints: 3
   upcomingDeliveries: []
   allFurnitures: []
   happyTotal: 0
+  synergyBonusPerMatch: 2
+  stageDataList: []
   debugStorage: 1
   skipSelection: 0
+  gameStartUI: {fileID: 0}
 --- !u!4 &1431591904
 Transform:
   m_ObjectHideFlags: 0
@@ -1140,7 +1145,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "END TURN"
+  m_text: END TURN
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

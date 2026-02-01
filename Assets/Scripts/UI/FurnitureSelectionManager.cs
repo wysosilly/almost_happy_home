@@ -34,8 +34,13 @@ public class FurnitureSelectionManager : MonoBehaviour
         var canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 100;
-        canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>().uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        var scaler = canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
+        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0f;
         canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+        if (canvasObj.GetComponent<CanvasFitInScreen>() == null)
+            canvasObj.AddComponent<CanvasFitInScreen>();
         selectionPanel = new GameObject("SelectionPanel");
         selectionPanel.transform.SetParent(canvasObj.transform, false);
         var panelRect = selectionPanel.AddComponent<RectTransform>();
@@ -61,10 +66,10 @@ public class FurnitureSelectionManager : MonoBehaviour
         var containerObj = new GameObject("CardContainer");
         containerObj.transform.SetParent(selectionPanel.transform, false);
         cardContainer = containerObj.AddComponent<RectTransform>();
-        cardContainer.anchorMin = new Vector2(0, 0.1f);
-        cardContainer.anchorMax = new Vector2(1, 0.75f);
-        cardContainer.offsetMin = new Vector2(20, 20);
-        cardContainer.offsetMax = new Vector2(-20, -20);
+        cardContainer.anchorMin = new Vector2(0.1f, 0.1f);
+        cardContainer.anchorMax = new Vector2(0.9f, 0.75f);
+        cardContainer.offsetMin = Vector2.zero;
+        cardContainer.offsetMax = Vector2.zero;
     }
 
     void ShowSelectionCards()
@@ -112,8 +117,12 @@ public class FurnitureSelectionManager : MonoBehaviour
         btn.onClick.AddListener(() => OnCardSelected(fp));
         var rect = card.GetComponent<RectTransform>();
         if (rect != null && cardContainer != null) {
-            rect.anchorMin = new Vector2(index / 3f + 0.05f, 0.2f);
-            rect.anchorMax = new Vector2((index + 1) / 3f - 0.05f, 0.8f);
+            float margin = 0.08f;
+            float span = 1f - 2f * margin;
+            float left = margin + (index / 3f) * span + 0.02f;
+            float right = margin + ((index + 1) / 3f) * span - 0.02f;
+            rect.anchorMin = new Vector2(left, 0.2f);
+            rect.anchorMax = new Vector2(right, 0.8f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.offsetMin = rect.offsetMax = Vector2.zero;
         }

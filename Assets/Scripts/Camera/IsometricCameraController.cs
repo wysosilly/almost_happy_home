@@ -16,6 +16,11 @@ public class IsometricCameraController : MonoBehaviour
     [Tooltip("비워두면 Init으로 받은 값 사용")]
     public Transform orbitPivot;
 
+    [Header("줌 (마우스 스크롤)")]
+    public float scrollZoomSpeed = 2f;
+    public float orthoSizeMin = 2f;
+    public float orthoSizeMax = 12f;
+
     private float _currentYRotation;
     private float _orbitDistance;
     private float _orbitHeight;
@@ -62,6 +67,17 @@ public class IsometricCameraController : MonoBehaviour
 
         if (Input.GetKey(KeyCode.E)) _currentYRotation += rotateSpeed * Time.deltaTime;
         if (Input.GetKey(KeyCode.Q)) _currentYRotation -= rotateSpeed * Time.deltaTime;
+
+        float scroll = Input.mouseScrollDelta.y;
+        if (Mathf.Abs(scroll) > 0.01f)
+        {
+            Camera cam = GetComponent<Camera>();
+            if (cam != null && cam.orthographic)
+            {
+                float newSize = cam.orthographicSize - scroll * scrollZoomSpeed;
+                cam.orthographicSize = Mathf.Clamp(newSize, orthoSizeMin, orthoSizeMax);
+            }
+        }
 
         float rad = _currentYRotation * Mathf.Deg2Rad;
         Vector3 offset = new Vector3(Mathf.Sin(rad) * _orbitDistance, _orbitHeight, Mathf.Cos(rad) * _orbitDistance);

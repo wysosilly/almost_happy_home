@@ -25,8 +25,10 @@ public class GameStartUI : MonoBehaviour
         var scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 0f;
         canvasObj.AddComponent<GraphicRaycaster>();
+        if (canvasObj.GetComponent<CanvasFitInScreen>() == null)
+            canvasObj.AddComponent<CanvasFitInScreen>();
         gameStartPanel = new GameObject("GameStartPanel");
         gameStartPanel.transform.SetParent(canvasObj.transform, false);
         var panelRect = gameStartPanel.AddComponent<RectTransform>();
