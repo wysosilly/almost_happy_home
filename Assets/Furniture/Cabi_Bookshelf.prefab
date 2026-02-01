@@ -269,7 +269,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 2, y: 1, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 283110008846030078}
@@ -308,7 +308,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 15655f39e8beaaf469c015e79b75e494, type: 2}
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -366,19 +366,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Furniture
   gridPos: {x: 0, y: 0}
+  height: 1
+  wallThickness: 0.05
+  wallSize: {x: 1, y: 1}
+  isAttachedToWall: 0
+  originalScale: {x: 0, y: 0, z: 0}
+  wallGridPos: {x: 0, y: 0}
   useCustomShape: 1
-  customShapeCells:
-  - {x: 0, y: 0}
-  - {x: 0, y: 1}
-  - {x: 1, y: 0}
+  customShapeCells: []
   size: {x: 2, y: 2}
   autoScaleVisual: 1
   visualHeight: 1
   shapeColor: {r: 1, g: 1, b: 1, a: 1}
-  displayName: "Bookshelf"
-  nameLabel: {fileID: 7833898237744973946}
+  modelPrefab: {fileID: 919132149155446097, guid: ae35d271993b43e4c81233af3c122a83, type: 3}
+  displayName: Bookshelf
+  nameLabelHeight: 1.5
   pivotAtCenter: 1
+  rotationSteps: 0
   happyValue: 1
+  mergeLevel: 0
+  bonusActionPoints: 0
+  permanentBonusAP: 0
   type: 1
   category: 0
   acceptableCategories: 03000000020000000100000004000000

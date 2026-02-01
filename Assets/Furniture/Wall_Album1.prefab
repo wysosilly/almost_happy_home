@@ -68,7 +68,7 @@ MonoBehaviour:
   m_text: New Text
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 2a85413532891024699ef0e2db12e02f, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: -7128392617684615197, guid: 2a85413532891024699ef0e2db12e02f, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -378,11 +378,13 @@ MonoBehaviour:
   autoScaleVisual: 1
   visualHeight: 1
   shapeColor: {r: 1, g: 1, b: 1, a: 1}
+  modelPrefab: {fileID: 0}
   displayName: Toy
   nameLabelHeight: 1.5
   pivotAtCenter: 1
   rotationSteps: 0
   happyValue: 1
+  mergeLevel: 0
   bonusActionPoints: 0
   permanentBonusAP: 0
   type: 2

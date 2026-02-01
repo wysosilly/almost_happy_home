@@ -35,6 +35,10 @@ public class Furniture : MonoBehaviour
     [Tooltip("커스텀 모양 비주얼 색상")]
     public Color shapeColor = Color.white;
 
+    [Header("3D Model (선택)")]
+    [Tooltip("할당하면 큐브 대신 이 모델(FBX/프리팹) 형태로 표시. 비우면 그리드 큐브 또는 커스텀 셰이프 사용")]
+    public GameObject modelPrefab;
+
     [Header("Name Label")]
     public string displayName;
     [Tooltip("가구 위쪽으로 이름 텍스트 높이 (로컬 Y)")]
@@ -54,6 +58,8 @@ public class Furniture : MonoBehaviour
     [Header("Happy")]
     [Tooltip("턴 종료 시 이 가구가 제공하는 Happy 수치")]
     public int happyValue = 1;
+    [Tooltip("병합 강화 단계. 병합할 때마다 증가하며 이름 뒤에 +N으로 표시")]
+    public int mergeLevel = 0;
 
     [Header("Enhancements")]
     public int bonusActionPoints = 0;
@@ -74,17 +80,19 @@ public class Furniture : MonoBehaviour
     public int storageCapacity = 2;
     public List<Furniture> storedItems = new List<Furniture>();
 
+    /// <summary>병합 시 같은 가구인지 판별하는 키. 같은 키면 드롭 시 병합 가능.</summary>
+    public string GetMergeKey()
+    {
+        string baseName = string.IsNullOrEmpty(displayName) ? gameObject.name : displayName;
+        return baseName.Replace("(Clone)", "").Trim();
+    }
+
     private List<GameObject> _generatedVisuals = new List<GameObject>();
     
     void Start() {
         originalScale = transform.localScale;
         ApplyVisualScale();
         SetupNameLabel();
-        // 커스텀 셰이프(ㄱ자 등)일 때 루트 메시(큐브)는 숨김 — 생성된 셀 비주얼만 표시
-        if (useCustomShape && customShapeCells.Count > 0) {
-            var rend = GetComponent<Renderer>();
-            if (rend != null) rend.enabled = false;
-        }
     }
     
     void SetupNameLabel() {
@@ -110,6 +118,7 @@ public class Furniture : MonoBehaviour
 
     string GetFormattedName() {
         string baseName = string.IsNullOrEmpty(displayName) ? gameObject.name : displayName;
+        if (mergeLevel > 0) baseName += " +" + mergeLevel;
         string info = $"(H:{happyValue}";
         if (permanentBonusAP > 0) info += $", AP:+{permanentBonusAP}";
         info += ")";
@@ -143,16 +152,63 @@ public class Furniture : MonoBehaviour
     
     public void ApplyVisualScale() {
         if (isAttachedToWall) return;
-        if (!autoScaleVisual) return;
-        if (useCustomShape && customShapeCells.Count > 0) {
-            GenerateCustomShapeVisual();
-        } else {
-            var s = EffectiveSize;
-            transform.localScale = new Vector3(s.x, visualHeight, s.y);
-            ApplyVisualRotation();
+        // 3D Model(선택)에 할당한 가구만 모델 표시. 할당 안 한 가구는 Model 자식 무시/제거 후 큐브만 표시
+        if (modelPrefab != null) {
+            Transform modelRoot = transform.Find("Model");
+            if (modelRoot == null) modelRoot = transform.Find("FurnitureModel");
+            if (modelRoot == null) modelRoot = CreateModelFromPrefab();
+            if (modelRoot != null) {
+                transform.localScale = Vector3.one;
+                var r = GetComponent<Renderer>();
+                if (r != null) r.enabled = false;
+                ApplyVisualRotation();
+                return;
+            }
         }
+        // modelPrefab 없음 → 기존 Model 자식(선반/마젠타 등) 제거하고 큐브만 표시
+        Transform oldModel = transform.Find("Model");
+        if (oldModel == null) oldModel = transform.Find("FurnitureModel");
+        if (oldModel != null) {
+            if (Application.isPlaying) Destroy(oldModel.gameObject);
+            else DestroyImmediate(oldModel.gameObject);
+        }
+        var rend = GetComponent<Renderer>();
+        if (rend != null) rend.enabled = true;
+        if (!autoScaleVisual) return;
+        var s = EffectiveSize;
+        transform.localScale = new Vector3(s.x, visualHeight, s.y);
+        ApplyVisualRotation();
     }
     
+    /// <summary>modelPrefab을 인스턴스화해 Model 자식으로 넣고, 그리드 크기(size, visualHeight)에 맞게 스케일/위치 보정</summary>
+    Transform CreateModelFromPrefab() {
+        GameObject go = Instantiate(modelPrefab);
+        go.name = "Model";
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localRotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one;
+        Bounds b = ComputeBounds(go);
+        if (b.size.x < 0.001f) b.size = new Vector3(1f, 1f, 1f);
+        Vector2Int s = EffectiveSize;
+        if (s.x < 1) s.x = 1;
+        if (s.y < 1) s.y = 1;
+        float h = visualHeight > 0.01f ? visualHeight : 1f;
+        go.transform.localPosition = -b.center;
+        go.transform.localScale = new Vector3(s.x / b.size.x, h / b.size.y, s.y / b.size.z);
+        return go.transform;
+    }
+
+    static Bounds ComputeBounds(GameObject root) {
+        Bounds b = new Bounds(root.transform.position, Vector3.zero);
+        bool first = true;
+        foreach (Renderer r in root.GetComponentsInChildren<Renderer>()) {
+            if (first) { b = r.bounds; first = false; }
+            else b.Encapsulate(r.bounds);
+        }
+        return first ? new Bounds(root.transform.position, Vector3.one) : b;
+    }
+
     void GenerateCustomShapeVisual() {
         foreach (var v in _generatedVisuals) {
             if (v != null) {
@@ -240,8 +296,6 @@ public class Furniture : MonoBehaviour
     public void Rotate90() {
         rotationSteps = (rotationSteps + 1) % 4;
         ApplyVisualRotation();
-        if (useCustomShape && customShapeCells.Count > 0)
-            GenerateCustomShapeVisual();
     }
 
     void ApplyVisualRotation() {

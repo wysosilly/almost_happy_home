@@ -30,7 +30,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 2, y: 1, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2079364624339091950}
@@ -127,10 +127,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Furniture
   gridPos: {x: 0, y: 0}
+  height: 1
+  wallThickness: 0.05
+  wallSize: {x: 1, y: 1}
+  isAttachedToWall: 0
+  originalScale: {x: 0, y: 0, z: 0}
+  wallGridPos: {x: 0, y: 0}
+  useCustomShape: 0
+  customShapeCells: []
   size: {x: 2, y: 2}
-  displayName: "Fridge"
-  nameLabel: {fileID: 4242445642722274480}
+  autoScaleVisual: 1
+  visualHeight: 1
+  shapeColor: {r: 1, g: 1, b: 1, a: 1}
+  modelPrefab: {fileID: 919132149155446097, guid: 33c22f6f5f802ba4f8babe453f6952bb, type: 3}
+  displayName: Fridge
+  nameLabelHeight: 1.5
   pivotAtCenter: 1
+  rotationSteps: 0
+  happyValue: 1
+  mergeLevel: 0
+  bonusActionPoints: 0
+  permanentBonusAP: 0
   type: 1
   category: 0
   acceptableCategories: 01000000
@@ -306,7 +323,7 @@ MonoBehaviour:
   m_text: New Text
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 2a85413532891024699ef0e2db12e02f, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: -7128392617684615197, guid: 2a85413532891024699ef0e2db12e02f, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []

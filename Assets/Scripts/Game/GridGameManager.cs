@@ -73,6 +73,13 @@ public partial class GridGameManager : MonoBehaviour
     private HashSet<Vector2Int> _expansionCandidates = new HashSet<Vector2Int>();
     private bool _isSelectingExpansion = false;
     private System.Action _onExpansionComplete;
+    
+    // 가구 배치 위치 선택 모드
+    private bool _isSelectingDropPosition = false;
+    private GameObject _pendingDeliveryPrefab;
+    private int _pendingRotationSteps = 0;
+    private GameObject _dropPreviewIndicator;
+    private Vector2Int _lastPreviewGridPos = new Vector2Int(-999, -999);
 
     [Header("Flow")]
     [Tooltip("비우면 FurnitureSelectionManager가 먼저 표시됨")]
@@ -216,17 +223,205 @@ public partial class GridGameManager : MonoBehaviour
         if (prefab == null) return;
         var f = prefab.GetComponent<Furniture>();
         if (f == null) return;
-        var sz = f.EffectiveSize;
-        int maxX = Mathf.Max(0, gridWidth - sz.x);
-        int maxY = Mathf.Max(0, gridHeight - sz.y);
-        if (maxX < 0 || maxY < 0) return;
-        Vector2Int pos = new Vector2Int(Random.Range(0, maxX + 1), Random.Range(0, maxY + 1));
-        List<Vector2Int> shapeCells = null;
-        if (f.useCustomShape && f.customShapeCells.Count > 0)
-            shapeCells = new List<Vector2Int>(f.customShapeCells);
-        upcomingDeliveries.Add(new UpcomingDelivery {
-            gridPos = pos, size = sz, shapeCells = shapeCells, turnsLeft = 1, prefab = prefab
-        });
+        
+        // 위치 선택 모드 시작
+        _pendingDeliveryPrefab = prefab;
+        StartDropPositionSelection(f);
+    }
+    
+    void StartDropPositionSelection(Furniture furnitureRef) {
+        _isSelectingDropPosition = true;
+        _pendingRotationSteps = 0;
+        _lastPreviewGridPos = new Vector2Int(-999, -999);
+        ClearDropPreviewIndicator();
+        CreateDropPreviewIndicator(furnitureRef);
+    }
+    
+    void ClearDropPreviewIndicator() {
+        if (_dropPreviewIndicator != null) {
+            Destroy(_dropPreviewIndicator);
+            _dropPreviewIndicator = null;
+        }
+    }
+    
+    void CreateDropPreviewIndicator(Furniture furnitureRef) {
+        if (indicatorPrefab == null) return;
+        
+        _dropPreviewIndicator = Instantiate(indicatorPrefab);
+        _dropPreviewIndicator.name = "DropPreviewIndicator";
+        
+        // 콜라이더 비활성화
+        var allColliders = _dropPreviewIndicator.GetComponentsInChildren<Collider>(true);
+        foreach (var c in allColliders) if (c != null) c.enabled = false;
+        
+        // 초기 위치는 화면 밖에
+        _dropPreviewIndicator.transform.position = new Vector3(-1000, 0, -1000);
+    }
+    
+    void HandleDropPositionSelection() {
+        if (!_isSelectingDropPosition || _pendingDeliveryPrefab == null) return;
+        
+        var furnitureRef = _pendingDeliveryPrefab.GetComponent<Furniture>();
+        if (furnitureRef == null) return;
+        
+        // R키 또는 우클릭으로 회전
+        if (Input.GetKeyDown(KeyCode.R) || Input.GetMouseButtonDown(1)) {
+            _pendingRotationSteps = (_pendingRotationSteps + 1) % 4;
+            _lastPreviewGridPos = new Vector2Int(-999, -999); // 강제 업데이트
+        }
+        
+        // 마우스 위치에 따라 프리뷰 업데이트
+        UpdateDropPreviewPosition(furnitureRef);
+        
+        if (Input.GetMouseButtonDown(0)) {
+            Vector3 mPos = GetMouseWorldPos();
+            // 0.5 단위 스냅
+            int halfX = Mathf.FloorToInt(mPos.x * 2f);
+            int halfY = Mathf.FloorToInt(mPos.z * 2f);
+            
+            var sz = GetRotatedSize(furnitureRef, _pendingRotationSteps);
+            Vector2Int halfCellPos = new Vector2Int(halfX, halfY);
+            
+            // 유효한 위치인지 확인
+            if (!IsDropPositionValidWithRotation(halfCellPos, sz)) return;
+            
+            // 즉시 가구 배치 (halfCellPos 전달)
+            PlaceFurnitureImmediately(halfX, halfY, _pendingRotationSteps);
+            
+            // 위치 선택 모드 종료
+            _isSelectingDropPosition = false;
+            _pendingDeliveryPrefab = null;
+            _pendingRotationSteps = 0;
+            ClearDropPreviewIndicator();
+            UpdateIndicators();
+        }
+    }
+    
+    void UpdateDropPreviewPosition(Furniture furnitureRef) {
+        if (_dropPreviewIndicator == null) return;
+        
+        Vector3 mPos = GetMouseWorldPos();
+        // 0.5 단위 스냅
+        int halfX = Mathf.FloorToInt(mPos.x * 2f);
+        int halfY = Mathf.FloorToInt(mPos.z * 2f);
+        
+        Vector2Int currentGridPos = new Vector2Int(halfX, halfY);
+        
+        // 같은 그리드 위치면 업데이트 스킵 (회전 시에는 강제 업데이트됨)
+        if (currentGridPos == _lastPreviewGridPos) return;
+        _lastPreviewGridPos = currentGridPos;
+        
+        var sz = GetRotatedSize(furnitureRef, _pendingRotationSteps);
+        Vector2Int halfCellPos = new Vector2Int(halfX, halfY);
+        
+        // 위치 및 크기 설정 (0.5 단위 기준)
+        float scaleFactor = 1f / Mathf.Max(indicatorBaseSize, 0.01f);
+        float worldX = halfX * 0.5f;
+        float worldZ = halfY * 0.5f;
+        float centerX = worldX + sz.x * 0.5f;
+        float centerZ = worldZ + sz.y * 0.5f;
+        
+        _dropPreviewIndicator.transform.position = new Vector3(centerX, 0.03f, centerZ);
+        _dropPreviewIndicator.transform.localScale = new Vector3(scaleFactor * sz.x, 1f, scaleFactor * sz.y);
+        
+        // 유효한 위치인지에 따라 색상 변경
+        bool isValid = IsDropPositionValidWithRotation(halfCellPos, sz);
+        var rend = _dropPreviewIndicator.GetComponentInChildren<Renderer>();
+        if (rend != null) {
+            if (rend.material == null) {
+                rend.material = new Material(Shader.Find("Sprites/Default"));
+            }
+            rend.material.color = isValid 
+                ? new Color(0.2f, 0.8f, 0.2f, 0.5f)  // 녹색 (배치 가능)
+                : new Color(0.8f, 0.2f, 0.2f, 0.5f); // 빨간색 (배치 불가)
+        }
+    }
+    
+    Vector2Int GetRotatedSize(Furniture f, int rotSteps) {
+        var baseSize = f.size;
+        if (f.useCustomShape && f.customShapeCells.Count > 0) {
+            // 커스텀 셰이프의 경우 회전된 바운딩 박스 계산
+            var cells = GetRotatedShapeCellsStatic(f.customShapeCells, rotSteps);
+            int minX = int.MaxValue, maxX = int.MinValue;
+            int minY = int.MaxValue, maxY = int.MinValue;
+            foreach (var c in cells) {
+                if (c.x < minX) minX = c.x;
+                if (c.x > maxX) maxX = c.x;
+                if (c.y < minY) minY = c.y;
+                if (c.y > maxY) maxY = c.y;
+            }
+            return new Vector2Int(maxX - minX + 1, maxY - minY + 1);
+        }
+        var s = new Vector2Int(baseSize.x > 0 ? baseSize.x : 1, baseSize.y > 0 ? baseSize.y : 1);
+        if (rotSteps == 1 || rotSteps == 3) return new Vector2Int(s.y, s.x);
+        return s;
+    }
+    
+    static List<Vector2Int> GetRotatedShapeCellsStatic(List<Vector2Int> originalCells, int rotSteps) {
+        if (originalCells == null || originalCells.Count == 0) return originalCells;
+        var result = new List<Vector2Int>(originalCells);
+        for (int step = 0; step < rotSteps; step++) {
+            var next = new List<Vector2Int>();
+            int minX = int.MaxValue, minY = int.MaxValue;
+            foreach (var c in result) {
+                var r = new Vector2Int(c.y, -c.x);
+                next.Add(r);
+                if (r.x < minX) minX = r.x;
+                if (r.y < minY) minY = r.y;
+            }
+            for (int i = 0; i < next.Count; i++)
+                next[i] = new Vector2Int(next[i].x - minX, next[i].y - minY);
+            result = next;
+        }
+        return result;
+    }
+    
+    
+    bool IsDropPositionValidWithRotation(Vector2Int halfCellPos, Vector2Int size) {
+        int gx = halfCellPos.x / 2;
+        int gy = halfCellPos.y / 2;
+        
+        if (gx + size.x > gridWidth || gy + size.y > gridHeight) return false;
+        if (gx < 0 || gy < 0) return false;
+        
+        for (int x = 0; x < size.x; x++) {
+            for (int y = 0; y < size.y; y++) {
+                int hx = halfCellPos.x + x * 2;
+                int hy = halfCellPos.y + y * 2;
+                
+                if (!validCells.Contains(new Vector2Int(hx, hy))) return false;
+                if (!validCells.Contains(new Vector2Int(hx + 1, hy))) return false;
+                if (!validCells.Contains(new Vector2Int(hx, hy + 1))) return false;
+                if (!validCells.Contains(new Vector2Int(hx + 1, hy + 1))) return false;
+            }
+        }
+        
+        for (int x = 0; x < size.x * 2; x++) {
+            for (int y = 0; y < size.y * 2; y++) {
+                Vector2Int cell = new Vector2Int(halfCellPos.x + x, halfCellPos.y + y);
+                foreach (var f in allFurnitures) {
+                    if (f == null || !f.gameObject.activeInHierarchy) continue;
+                    if (f.GetOccupiedCells().Contains(cell)) return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    void PlaceFurnitureImmediately(int halfX, int halfY, int rotSteps) {
+        if (_pendingDeliveryPrefab == null) return;
+        
+        GameObject go = Instantiate(_pendingDeliveryPrefab);
+        Furniture f = go.GetComponent<Furniture>();
+        f.gridPos = new Vector2Int(halfX, halfY);
+        f.rotationSteps = rotSteps;
+        f.ApplyVisualScale();
+        allFurnitures.Add(f);
+        
+        Vector3 target = f.GetWorldPosition();
+        go.transform.position = target + Vector3.up * 10f;
+        StartCoroutine(FallRoutine(go.transform, target));
     }
 
     void RegisterSceneFurniture() {
@@ -248,22 +443,41 @@ public partial class GridGameManager : MonoBehaviour
 
     void Update() {
         if (_gameOver || _waitingForNextStage) return;
+        
+        // HUD 업데이트 (항상 실행)
+        UpdateHUD();
+        
+        // 가구 배치 위치 선택 모드 처리
+        if (_isSelectingDropPosition) {
+            HandleDropPositionSelection();
+            return;
+        }
+        
         HandleMouseInput();
         UpdateDropPreview();
         if (Camera.main != null) {
             foreach (var go in _wallFurnitureLabels)
                 if (go != null) go.transform.LookAt(go.transform.position + Camera.main.transform.forward);
         }
-        if (apText != null) {
-            apText.fontSize = 24; // 폰트 크기 강제 조정
-            StageData currentStage = (_currentStageIndex < stageDataList.Count) ? stageDataList[_currentStageIndex] : null;
-            string stageName = currentStage != null ? currentStage.stageName : $"Room {_currentStageIndex + 1}";
-            int totalRounds = currentStage != null ? currentStage.rounds.Count : 3;
-            
-            apText.text = $"Action Points: {actionPoints}  Happy: {happyTotal}\n" +
-                          $"Stage: {stageName} ({_currentStageIndex + 1})  Round: {_currentRoundIndex + 1}/{totalRounds}  Turn: {_currentTurn}";
-        }
         if (Input.GetKeyDown(KeyCode.Space)) EndTurn();
+    }
+    
+    void UpdateHUD() {
+        if (apText == null) return;
+        
+        apText.fontSize = 24;
+        StageData currentStage = (_currentStageIndex < stageDataList.Count) ? stageDataList[_currentStageIndex] : null;
+        string stageName = currentStage != null ? currentStage.stageName : $"Room {_currentStageIndex + 1}";
+        int totalRounds = currentStage != null ? currentStage.rounds.Count : 3;
+        
+        string modeText = "";
+        if (_isSelectingDropPosition) {
+            modeText = "\n<color=#00FF00>Click to place furniture (R: Rotate)</color>";
+        }
+        
+        apText.text = $"Action Points: {actionPoints}  Happy: {happyTotal}\n" +
+                      $"Stage: {stageName} ({_currentStageIndex + 1})  Round: {_currentRoundIndex + 1}/{totalRounds}  Turn: {_currentTurn}" +
+                      modeText;
     }
 
     void SetupScene() {
@@ -460,6 +674,13 @@ public partial class GridGameManager : MonoBehaviour
                     UpdateIndicators();
                     return;
                 }
+                // 같은 가구끼리, 같은 강화 단계끼리만 병합 (+0은 +0끼리, +1은 +1끼리만)
+                if (item.GetMergeKey() == storage.GetMergeKey() && item.mergeLevel == storage.mergeLevel) {
+                    MergeFurniture(item, storage);
+                    actionPoints--;
+                    UpdateIndicators();
+                    return;
+                }
             }
 
             Vector3 dropPos = GetMouseWorldPos() + dragOffset;
@@ -488,6 +709,16 @@ public partial class GridGameManager : MonoBehaviour
         }
 
         if (moveFailed) StartCoroutine(ShakeRoutine(f, originalGridPos));
+    }
+
+    /// <summary>같은 가구를 드롭했을 때: source 제거, target 위치에 남기고 target의 Happy x2, 강화 단계 +1.</summary>
+    void MergeFurniture(Furniture source, Furniture target)
+    {
+        allFurnitures.Remove(source);
+        target.mergeLevel += 1;
+        Destroy(source.gameObject);
+        target.happyValue *= 2;
+        target.UpdateNameLabel();
     }
 
     void ProcessDelivery(UpcomingDelivery d) {
@@ -533,16 +764,27 @@ public partial class GridGameManager : MonoBehaviour
 
     public void EndTurn() {
         if (_gameOver || _waitingForNextStage) return;
-        
-        happyTotal += GetPlacedFurnitureHappySum();
+        StartCoroutine(EndTurnWithPopupDelay());
+    }
+
+    const float HappyPopupDuration = 1.2f;
+    const float DelayAfterPopupBeforeUI = 1f;
+
+    System.Collections.IEnumerator EndTurnWithPopupDelay() {
+        var breakdown = GetPlacedFurnitureHappyBreakdown();
+        int sum = 0;
+        foreach (var (f, amount) in breakdown) {
+            sum += amount;
+            if (amount > 0) ShowHappyPopup(f, amount);
+        }
+        happyTotal += sum;
+        yield return new WaitForSeconds(HappyPopupDuration + DelayAfterPopupBeforeUI);
         for (int i = upcomingDeliveries.Count - 1; i >= 0; i--) {
             upcomingDeliveries[i].turnsLeft--;
             if (upcomingDeliveries[i].turnsLeft <= 0) { ProcessDelivery(upcomingDeliveries[i]); upcomingDeliveries.RemoveAt(i); }
         }
         _currentTurn++;
         _turnsInCurrentRound++;
-
-        // 가구 강화 단계 시작
         StartFurnitureEnhancementPhase();
     }
 
@@ -1190,19 +1432,64 @@ public partial class GridGameManager : MonoBehaviour
 
     int GetPlacedFurnitureHappySum() {
         int sum = 0;
+        foreach (var (_, amount) in GetPlacedFurnitureHappyBreakdown())
+            sum += amount;
+        return sum;
+    }
+
+    /// <summary>가구별 Happy 기여도. 턴 종료 시 팝업 표시용.</summary>
+    List<(Furniture f, int amount)> GetPlacedFurnitureHappyBreakdown() {
+        var list = new List<(Furniture, int)>();
         foreach (var f in allFurnitures) {
             if (f == null || !f.gameObject.activeInHierarchy) continue;
-            sum += f.happyValue;
+            int amount = f.happyValue;
             if (f.type == FurnitureType.Storage && f.storedItems != null) {
                 foreach (var item in f.storedItems) {
                     if (item == null) continue;
-                    sum += item.happyValue;
+                    amount += item.happyValue;
                     if (item.category != FurnitureCategory.None &&
                         f.acceptableCategories != null && f.acceptableCategories.Contains(item.category))
-                        sum += synergyBonusPerMatch;
+                        amount += synergyBonusPerMatch;
                 }
             }
+            list.Add((f, amount));
         }
-        return sum;
+        return list;
+    }
+
+    /// <summary>가구 위에 Happy 수치 팝업을 띄우고, 위로 떠오르며 사라지는 연출.</summary>
+    void ShowHappyPopup(Furniture furniture, int amount) {
+        var go = new GameObject("HappyPopup");
+        go.transform.position = furniture.transform.position + Vector3.up * (furniture.nameLabelHeight + 0.5f);
+        var tm = go.AddComponent<TextMesh>();
+        tm.text = "+" + amount;
+        tm.fontSize = 24;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.color = new Color(1f, 0.9f, 0.3f);
+        tm.characterSize = 0.25f;
+        StartCoroutine(FloatHappyPopupRoutine(go, go.transform.position));
+    }
+
+    System.Collections.IEnumerator FloatHappyPopupRoutine(GameObject popupObj, Vector3 startPos) {
+        float duration = HappyPopupDuration;
+        float elapsed = 0f;
+        var tm = popupObj.GetComponent<TextMesh>();
+        if (tm == null) yield break;
+        var cam = Camera.main;
+        while (elapsed < duration) {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            popupObj.transform.position = startPos + Vector3.up * (t * 1.5f);
+            if (cam != null) {
+                Vector3 toCam = cam.transform.position - popupObj.transform.position;
+                popupObj.transform.rotation = Quaternion.LookRotation(-toCam);
+            }
+            var c = tm.color;
+            c.a = 1f - t;
+            tm.color = c;
+            yield return null;
+        }
+        if (popupObj != null) Destroy(popupObj);
     }
 }
